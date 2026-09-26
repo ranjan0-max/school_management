@@ -73,6 +73,54 @@ class SchoolAccessTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['event' => 'school.context_exited']);
     }
 
+    public function test_school_switcher_searches_and_pages_schools_on_the_server(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        School::factory()->count(21)->sequence(fn ($sequence) => ['name' => sprintf('Alpha %02d', $sequence->index)])->create();
+        $beta = School::factory()->create(['name' => 'Beta Public School', 'code' => 'BPS']);
+
+        $this->actingAs($admin)->getJson(route('platform.schools.options'))
+            ->assertOk()
+            ->assertJsonCount(20, 'data')
+            ->assertJsonPath('data.0.name', 'Alpha 00')
+            ->assertJsonPath('next_page_url', route('platform.schools.options', ['page' => 2]));
+
+        $this->actingAs($admin)->getJson(route('platform.schools.options', ['page' => 2]))
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('next_page_url', null);
+
+        $this->actingAs($admin)->getJson(route('platform.schools.options', ['search' => 'bps']))
+            ->assertExactJson([
+                'data' => [[
+                    'id' => $beta->getKey(),
+                    'name' => 'Beta Public School',
+                    'code' => 'BPS',
+                    'status' => $beta->status->value,
+                    'enter_url' => route('platform.schools.enter', $beta),
+                ]],
+                'next_page_url' => null,
+            ]);
+
+        $this->actingAs(User::factory()->create())->getJson(route('platform.schools.options'))->assertForbidden();
+    }
+
+    public function test_top_bar_school_switcher_is_only_for_super_admin(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        $school = School::factory()->create(['name' => 'Green Valley School']);
+
+        $this->actingAs($admin)->get(route('platform.dashboard'))
+            ->assertOk()->assertSee('data-school-switcher', false)->assertSee('Select school');
+
+        $this->actingAs($admin)->withSession(['active_school_id' => $school->getKey()])
+            ->get(route('platform.dashboard'))
+            ->assertSee('Working in Green Valley School')->assertSee(route('platform.schools.leave'));
+
+        $this->actingAs(User::factory()->create(['school_id' => $school->getKey()]))
+            ->get(route('school.dashboard'))
+            ->assertOk()->assertDontSee('data-school-switcher', false);
+    }
+
     /**
      * @param  array<int, int>  $menuIds
      */

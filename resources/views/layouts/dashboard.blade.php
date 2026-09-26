@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-    <link href="{{ asset('css/dashboard.css') }}?v=20260925-10" rel="stylesheet">
+    <link href="{{ asset('css/dashboard.css') }}?v=20260926-8" rel="stylesheet">
 </head>
 <body class="dashboard-body">
     <a class="skip-link" href="#dashboard-content">Skip to content</a>
@@ -65,15 +65,30 @@
                 @endif
 
                 @if (($databaseNavigation ?? collect())->isNotEmpty())
+                    {{-- Collapsible groups: the group of the open page starts expanded, the rest collapsed
+                         unless the user opened them before (remembered by dashboard.js). --}}
                     @foreach ($databaseNavigation as $groupName => $groupMenus)
-                        <span class="dashboard-nav-label mt-4">{{ $groupName }}</span>
-                        @foreach ($groupMenus as $menuItem)
-                            @php($menuRoutePattern = str_ends_with($menuItem->route_name, '.index') ? substr($menuItem->route_name, 0, -5).'*' : $menuItem->route_name)
-                            <a class="dashboard-nav-link {{ request()->routeIs($menuRoutePattern) ? 'active' : '' }}" href="{{ route($menuItem->route_name) }}">
-                                <span class="dashboard-nav-icon" aria-hidden="true"><x-sidebar-icon :name="$menuItem->key" /></span>
-                                {{ $menuItem->name }}
-                            </a>
-                        @endforeach
+                        @php
+                            $groupId = 'nav-group-'.\Illuminate\Support\Str::slug($groupName);
+                            $activeMenuKeys = $groupMenus
+                                ->filter(fn ($menuItem) => request()->routeIs(str_ends_with($menuItem->route_name, '.index') ? substr($menuItem->route_name, 0, -5).'*' : $menuItem->route_name))
+                                ->pluck('key');
+                            $groupIsActive = $activeMenuKeys->isNotEmpty();
+                        @endphp
+                        <div class="dashboard-nav-group {{ $groupIsActive ? '' : 'is-collapsed' }}" data-nav-group="{{ $groupId }}" @if ($groupIsActive) data-nav-group-active @endif>
+                            <button class="dashboard-nav-label dashboard-nav-group-toggle mt-4" type="button" aria-expanded="{{ $groupIsActive ? 'true' : 'false' }}" aria-controls="{{ $groupId }}">
+                                <span>{{ $groupName }}</span>
+                                <svg class="dashboard-nav-group-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                            </button>
+                            <div class="dashboard-nav-group-items" id="{{ $groupId }}">
+                                @foreach ($groupMenus as $menuItem)
+                                    <a class="dashboard-nav-link {{ $activeMenuKeys->contains($menuItem->key) ? 'active' : '' }}" href="{{ route($menuItem->route_name) }}">
+                                        <span class="dashboard-nav-icon" aria-hidden="true"><x-sidebar-icon :name="$menuItem->key" /></span>
+                                        {{ $menuItem->name }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
                     @endforeach
                 @elseif (! auth()->user()?->isSuperAdmin())
                     <span class="dashboard-nav-label mt-4">Modules</span>
@@ -103,6 +118,50 @@
                     <strong>{{ $title ?? 'Dashboard' }}</strong>
                 </div>
                 <div class="dashboard-topbar-actions">
+                    @if (auth()->user()?->isSuperAdmin())
+                        <div class="dropdown" data-school-switcher data-options-url="{{ route('platform.schools.options') }}" data-active-school="{{ $activeSchool?->getKey() }}">
+                            <button
+                                class="dashboard-school-button"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false"
+                                aria-label="Switch school"
+                            >
+                                <x-sidebar-icon name="schools" />
+                                <span>{{ $activeSchool?->name ?? 'Select school' }}</span>
+                                <svg class="dashboard-school-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-end dashboard-account-menu dashboard-school-menu">
+                                <div class="dashboard-account-menu-header">
+                                    <strong>Switch school</strong>
+                                    <small>{{ $activeSchool ? 'Working in '.$activeSchool->name : 'No school selected' }}</small>
+                                </div>
+                                <input
+                                    class="form-control form-control-sm dashboard-school-search"
+                                    type="search"
+                                    maxlength="100"
+                                    placeholder="Search by name or code"
+                                    aria-label="Search schools"
+                                    data-school-search
+                                >
+                                <div class="dashboard-school-list" data-school-results></div>
+                                <button class="dropdown-item dashboard-school-more" type="button" data-school-more hidden>Load more</button>
+                                @if ($activeSchool)
+                                    <div class="dropdown-divider"></div>
+                                    <form method="POST" action="{{ route('platform.schools.leave') }}">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="dropdown-item" type="submit">
+                                            <span aria-hidden="true">←</span> Back to Platform
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="dropdown">
                         <button
                             class="dashboard-settings-button"
@@ -148,6 +207,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ asset('js/dashboard.js') }}?v=20260925-6" defer></script>
+    <script src="{{ asset('js/dashboard.js') }}?v=20260926-5" defer></script>
 </body>
 </html>

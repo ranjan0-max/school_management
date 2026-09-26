@@ -24,6 +24,12 @@ class ResolveTenant
             ? $this->resolveForSuperAdmin($request)
             : $user->school;
 
+        // Super Admin may open any school page; they only have to say which school's data to show.
+        if ($school === null && $user->isSuperAdmin()) {
+            return redirect()->guest(route('platform.schools.index'))
+                ->with('status', 'Choose a school to open this page.');
+        }
+
         abort_unless($school !== null, 403, 'No school is assigned to this account.');
 
         $this->tenantContext->setSchool($school);

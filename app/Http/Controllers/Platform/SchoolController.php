@@ -12,6 +12,7 @@ use App\Models\School;
 use App\Support\Audit\AuditLogger;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +58,38 @@ class SchoolController extends Controller
             'operationalCount' => School::query()
                 ->whereIn('status', [SchoolStatus::Active->value, SchoolStatus::Trial->value])
                 ->count(),
+        ]);
+    }
+
+    /**
+     * Top bar school switcher: one searchable page of schools at a time.
+     */
+    public function options(Request $request): JsonResponse
+    {
+        $search = mb_substr(trim($request->string('search')->toString()), 0, 100);
+
+        $schools = School::query()
+            ->select(['id', 'name', 'code', 'status'])
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $query->where(function (Builder $query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->orderBy('id')
+            ->simplePaginate(20)
+            ->withQueryString();
+
+        return response()->json([
+            'data' => $schools->getCollection()->map(fn (School $school): array => [
+                'id' => $school->getKey(),
+                'name' => $school->name,
+                'code' => $school->code,
+                'status' => $school->status->value,
+                'enter_url' => route('platform.schools.enter', $school),
+            ]),
+            'next_page_url' => $schools->nextPageUrl(),
         ]);
     }
 
@@ -199,7 +232,7 @@ class SchoolController extends Controller
             auditableId: $school->getKey(),
         );
 
-        return redirect()->route('school.dashboard');
+        return redirect()->intended(route('school.dashboard'));
     }
 
     /**

@@ -22,14 +22,16 @@ class NavigationSeeder extends Seeder
             ]],
             ['key' => 'people_management', 'name' => 'People Management', 'icon' => 'people', 'pages' => [
                 ['students', 'Students', 'view,create,edit,export', 'school.students.index'],
-                ['guardians', 'Guardians', self::CRUD, 'school.guardians.index'],
+                // Guardians are created from the student form, so there is no "create" action.
+                ['guardians', 'Guardians', 'view,edit,delete', 'school.guardians.index'],
                 ['teachers', 'Teachers', 'view,create,edit', 'school.teachers.index'],
                 ['staff', 'Staff', 'view,create,edit', 'school.staff.index'],
             ]],
             ['key' => 'attendance', 'name' => 'Attendance', 'icon' => 'attendance', 'pages' => [
-                ['student_attendance', 'Student Attendance', 'view,create,edit,approve'],
-                ['staff_attendance', 'Staff Attendance', 'view,create,edit,approve'],
-                ['attendance_reports', 'Attendance Reports', 'view,export'],
+                ['student_attendance', 'Student Attendance', 'view,create,edit,approve', 'school.student-attendance.index'],
+                ['staff_attendance', 'Staff Attendance', 'view,create,edit,approve', 'school.staff-attendance.index'],
+                ['holidays', 'Holidays', self::CRUD, 'school.holidays.index'],
+                ['attendance_reports', 'Attendance Reports', 'view,export', 'school.attendance-reports.index'],
             ]],
             ['key' => 'fee_management', 'name' => 'Fee Management', 'icon' => 'fees', 'pages' => [
                 ['fee_heads', 'Fee Heads', self::CRUD],

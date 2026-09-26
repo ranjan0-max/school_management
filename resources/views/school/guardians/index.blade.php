@@ -7,9 +7,6 @@
             <h1>Guardians</h1>
             <p>Parents and guardians. One guardian can be linked to several students, so siblings share the same record.</p>
         </div>
-        @can('menu', ['guardians', 'create'])
-            <a class="btn btn-primary app-btn-primary" href="{{ route('school.guardians.create') }}">+ Add guardian</a>
-        @endcan
     </div>
 
     @if (session('status'))<div class="alert account-alert-success mt-4 mb-0" role="status">{{ session('status') }}</div>@endif

@@ -3,6 +3,7 @@
 namespace Tests\Feature\School;
 
 use App\Enums\EmployeeType;
+use App\Enums\MenuAction;
 use App\Models\AcademicSession;
 use App\Models\Employee;
 use App\Models\Guardian;
@@ -15,6 +16,7 @@ use App\Models\Student;
 use App\Models\User;
 use Database\Seeders\NavigationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -93,6 +95,25 @@ class PeopleManagementTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertModelExists($guardian);
+    }
+
+    public function test_guardians_cannot_be_created_on_their_own(): void
+    {
+        $this->assertFalse(Route::has('school.guardians.create'));
+        $this->assertFalse(Route::has('school.guardians.store'));
+        $this->assertSame(['view', 'edit', 'delete'], array_map(
+            fn (MenuAction $action): string => $action->value,
+            Menu::parseActions(Menu::query()->where('key', 'guardians')->value('actions')),
+        ));
+
+        $this->actingAs($this->admin)->get(route('school.guardians.index'))
+            ->assertOk()->assertDontSee('+ Add guardian');
+
+        $this->actingAs($this->admin)->withSession(['_token' => 't'])
+            ->post('/school/guardians', ['_token' => 't', 'name' => 'Direct Guardian'])
+            ->assertMethodNotAllowed();
+
+        $this->assertDatabaseMissing('guardians', ['name' => 'Direct Guardian']);
     }
 
     public function test_student_is_created_with_generated_number_enrollment_and_shared_guardian(): void

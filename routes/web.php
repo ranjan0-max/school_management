@@ -9,12 +9,16 @@ use App\Http\Controllers\Platform\RoleController;
 use App\Http\Controllers\Platform\SchoolController;
 use App\Http\Controllers\Platform\UserController;
 use App\Http\Controllers\School\AcademicSessionController;
+use App\Http\Controllers\School\AttendanceReportController;
 use App\Http\Controllers\School\DashboardController as SchoolDashboardController;
 use App\Http\Controllers\School\EmployeeController;
 use App\Http\Controllers\School\GuardianController;
+use App\Http\Controllers\School\HolidayController;
 use App\Http\Controllers\School\PeriodController;
 use App\Http\Controllers\School\SchoolClassController;
 use App\Http\Controllers\School\SectionController;
+use App\Http\Controllers\School\StaffAttendanceController;
+use App\Http\Controllers\School\StudentAttendanceController;
 use App\Http\Controllers\School\StudentController;
 use App\Http\Controllers\School\SubjectController;
 use App\Http\Controllers\School\TimetableEntryController;
@@ -39,6 +43,7 @@ Route::middleware('auth')->group(function () {
         Route::get('dashboard', PlatformDashboardController::class)->name('dashboard');
         Route::get('audit-logs', AuditLogController::class)->name('audit-logs.index');
 
+        Route::get('schools/options', [SchoolController::class, 'options'])->name('schools.options');
         Route::resource('schools', SchoolController::class)->except(['show', 'destroy']);
         Route::get('schools/{school}/access', [SchoolController::class, 'access'])->name('schools.access');
         Route::put('schools/{school}/access', [SchoolController::class, 'updateAccess'])->name('schools.access.update');
@@ -65,7 +70,8 @@ Route::middleware('auth')->group(function () {
         Route::get('timetable', [TimetableEntryController::class, 'index'])->name('timetable.index');
         Route::put('timetable', [TimetableEntryController::class, 'update'])->name('timetable.update');
 
-        Route::resource('guardians', GuardianController::class)->except(['show']);
+        // Guardians are created only from the student form, never on their own.
+        Route::resource('guardians', GuardianController::class)->only(['index', 'edit', 'update', 'destroy']);
         Route::resource('students', StudentController::class)->only(['index', 'create', 'store', 'edit', 'update']);
 
         // One controller for both lists; the route name decides teacher vs staff.
@@ -73,5 +79,23 @@ Route::middleware('auth')->group(function () {
             ->parameters(['teachers' => 'employee']);
         Route::resource('staff', EmployeeController::class)->only(['index', 'create', 'store', 'edit', 'update'])
             ->parameters(['staff' => 'employee']);
+
+        // Attendance: one sheet per section (students) or per school (staff) per day.
+        Route::get('student-attendance', [StudentAttendanceController::class, 'index'])->name('student-attendance.index');
+        Route::put('student-attendance', [StudentAttendanceController::class, 'save'])->name('student-attendance.save');
+        Route::patch('student-attendance/{sheet}/approve', [StudentAttendanceController::class, 'approve'])->name('student-attendance.approve');
+        Route::patch('student-attendance/{sheet}/reopen', [StudentAttendanceController::class, 'reopen'])->name('student-attendance.reopen');
+
+        Route::get('staff-attendance', [StaffAttendanceController::class, 'index'])->name('staff-attendance.index');
+        Route::put('staff-attendance', [StaffAttendanceController::class, 'save'])->name('staff-attendance.save');
+        Route::patch('staff-attendance/{sheet}/approve', [StaffAttendanceController::class, 'approve'])->name('staff-attendance.approve');
+        Route::patch('staff-attendance/{sheet}/reopen', [StaffAttendanceController::class, 'reopen'])->name('staff-attendance.reopen');
+
+        Route::resource('holidays', HolidayController::class)->except(['show']);
+
+        Route::get('attendance-reports', [AttendanceReportController::class, 'students'])->name('attendance-reports.index');
+        Route::get('attendance-reports/export', [AttendanceReportController::class, 'studentsExport'])->name('attendance-reports.export');
+        Route::get('attendance-reports/staff', [AttendanceReportController::class, 'staff'])->name('attendance-reports.staff');
+        Route::get('attendance-reports/staff/export', [AttendanceReportController::class, 'staffExport'])->name('attendance-reports.staff-export');
     });
 });

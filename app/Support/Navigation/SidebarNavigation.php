@@ -20,11 +20,6 @@ class SidebarNavigation
      */
     public function for(User $user): Collection
     {
-        // School pages only make sense inside a school: Super Admin sees them after entering one.
-        if ($user->isSuperAdmin() && ! request()->session()->has('active_school_id')) {
-            return collect();
-        }
-
         $keys = $this->access->visibleMenuKeys($user);
 
         if ($keys === []) {

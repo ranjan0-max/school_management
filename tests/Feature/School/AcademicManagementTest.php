@@ -167,16 +167,28 @@ class AcademicManagementTest extends TestCase
             ->assertSessionHasErrors('code');
     }
 
-    public function test_super_admin_sees_school_menus_only_inside_a_school_workspace(): void
+    public function test_super_admin_sees_school_menus_everywhere(): void
     {
         $superAdmin = User::factory()->superAdmin()->create();
 
         $this->actingAs($superAdmin)->get(route('platform.dashboard'))
-            ->assertOk()->assertDontSee(route('school.classes.index'));
+            ->assertOk()->assertSee(route('school.classes.index'));
 
         $this->actingAs($superAdmin)->withSession(['active_school_id' => $this->school->getKey()])
             ->get(route('school.dashboard'))
             ->assertOk()->assertSee(route('school.classes.index'));
+    }
+
+    public function test_super_admin_without_a_school_picks_one_then_lands_on_the_requested_page(): void
+    {
+        $superAdmin = User::factory()->superAdmin()->create();
+
+        $this->actingAs($superAdmin)->get(route('school.classes.index'))
+            ->assertRedirect(route('platform.schools.index'));
+
+        $this->actingAs($superAdmin)->withSession(['_token' => 't'])
+            ->post(route('platform.schools.enter', $this->school), ['_token' => 't'])
+            ->assertRedirect(route('school.classes.index'));
     }
 
     public function test_super_admin_can_work_inside_an_entered_school(): void

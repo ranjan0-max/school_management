@@ -21,7 +21,6 @@ class GuardianController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('menu:guardians', only: ['index']),
-            new Middleware('menu:guardians,create', only: ['create', 'store']),
             new Middleware('menu:guardians,edit', only: ['edit', 'update']),
             new Middleware('menu:guardians,delete', only: ['destroy']),
         ];
@@ -49,23 +48,6 @@ class GuardianController extends Controller implements HasMiddleware
             'guardians' => $guardians,
             'search' => $search,
         ]);
-    }
-
-    public function create(): View
-    {
-        return view('school.guardians.form', [
-            'school' => $this->currentSchool(),
-            'guardian' => new Guardian,
-            'students' => collect(),
-        ]);
-    }
-
-    public function store(GuardianRequest $request): RedirectResponse
-    {
-        $guardian = Guardian::query()->create([...$request->validated(), 'school_id' => $this->currentSchool()->getKey()]);
-        $this->record('guardian.created', $request, $guardian);
-
-        return redirect()->route('school.guardians.index')->with('status', "Guardian {$guardian->name} added.");
     }
 
     public function edit(Guardian $guardian): View

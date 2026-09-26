@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Enums\MenuAction;
+use App\Models\School;
 use App\Models\User;
 use App\Support\Access\MenuAccess;
 use App\Support\Navigation\SidebarNavigation;
@@ -51,6 +52,15 @@ class AppServiceProvider extends ServiceProvider
                 : collect();
 
             $view->with('databaseNavigation', $navigation);
+
+            // Top bar school switcher: the school the Super Admin is working in, if any.
+            $activeSchoolId = $user instanceof User && $user->isSuperAdmin()
+                ? request()->session()->get('active_school_id')
+                : null;
+
+            $view->with('activeSchool', is_numeric($activeSchoolId)
+                ? School::query()->select(['id', 'name', 'code'])->find((int) $activeSchoolId)
+                : null);
         });
 
         $this->configureDefaults();
