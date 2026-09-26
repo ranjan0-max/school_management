@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureSchoolIsActive;
 use App\Http\Middleware\EnsureSuperAdmin;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\RequireMenuAccess;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+        $middleware->web(append: EnsureUserIsActive::class);
 
         $middleware->alias([
             'school.active' => EnsureSchoolIsActive::class,

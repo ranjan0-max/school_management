@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Enums\MenuAction;
+use App\Models\Notice;
 use App\Models\School;
 use App\Models\User;
 use App\Support\Access\MenuAccess;
@@ -58,12 +59,42 @@ class AppServiceProvider extends ServiceProvider
                 ? request()->session()->get('active_school_id')
                 : null;
 
-            $view->with('activeSchool', is_numeric($activeSchoolId)
-                ? School::query()->select(['id', 'name', 'code'])->find((int) $activeSchoolId)
-                : null);
+            $activeSchool = is_numeric($activeSchoolId)
+                ? School::query()->select(['id', 'name', 'code', 'timezone'])->find((int) $activeSchoolId)
+                : null;
+
+            $view->with('activeSchool', $activeSchool);
+            $view->with('noticeBell', $user instanceof User ? $this->noticeBell($user, $activeSchool) : null);
         });
 
         $this->configureDefaults();
+    }
+
+    /**
+     * Top bar bell: unread notices of the school the user is working in, or null when
+     * there is no school or the user may not see notices.
+     *
+     * @return array{unread: int, feedUrl: string, indexUrl: string}|null
+     */
+    private function noticeBell(User $user, ?School $activeSchool): ?array
+    {
+        $school = $user->isSuperAdmin() ? $activeSchool : $user->school;
+
+        if ($school === null || (! $user->isSuperAdmin() && ! $school->isOperational()) || ! $user->can('menu', ['notices', 'view'])) {
+            return null;
+        }
+
+        $today = CarbonImmutable::now($school->timezone ?: config('app.timezone'))->toDateString();
+
+        return [
+            'unread' => Notice::query()
+                ->where('school_id', $school->getKey())
+                ->visibleTo($user, $today)
+                ->whereDoesntHave('reads', fn ($query) => $query->where('user_id', $user->getKey()))
+                ->count(),
+            'feedUrl' => route('school.notices.feed'),
+            'indexUrl' => route('school.notices.index'),
+        ];
     }
 
     /**

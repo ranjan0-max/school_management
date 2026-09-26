@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Platform;
 
-use App\Enums\MenuAction;
 use App\Enums\RoleType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Platform\StoreRoleRequest;
 use App\Http\Requests\Platform\UpdateRoleRequest;
-use App\Models\Menu;
 use App\Models\Role;
 use App\Models\School;
+use App\Support\Access\AccessMatrix;
 use App\Support\Audit\AuditLogger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -21,7 +20,10 @@ use Illuminate\View\View;
 
 class RoleController extends Controller
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly AccessMatrix $access,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -79,7 +81,7 @@ class RoleController extends Controller
             'role' => new Role(['type' => $type, 'school_id' => $school?->getKey(), 'is_active' => true]),
             'school' => $school,
             'schools' => School::query()->orderBy('name')->get(['id', 'name']),
-            'groups' => $type === RoleType::School && $school === null ? new Collection : $this->menuCatalog($school),
+            'groups' => $type === RoleType::School && $school === null ? new Collection : $this->access->catalog($school),
             'grants' => [],
         ]);
     }
@@ -100,7 +102,7 @@ class RoleController extends Controller
                 'is_active' => $attributes['is_active'],
             ]);
 
-            $this->syncMenus($role, $school, $request->input('menus', []));
+            $this->access->syncRoleMenus($role, $school, $request->input('menus', []));
 
             return $role;
         });
@@ -123,8 +125,8 @@ class RoleController extends Controller
             'role' => $role,
             'school' => $role->school,
             'schools' => collect(),
-            'groups' => $this->menuCatalog($role->school),
-            'grants' => $this->currentGrants($role),
+            'groups' => $this->access->catalog($role->school),
+            'grants' => $this->access->roleGrants($role),
         ]);
     }
 
@@ -141,7 +143,7 @@ class RoleController extends Controller
                 'is_active' => $attributes['is_active'],
             ]);
 
-            $this->syncMenus($role, $role->school, $request->input('menus', []));
+            $this->access->syncRoleMenus($role, $role->school, $request->input('menus', []));
         });
 
         $this->audit->record(
@@ -157,62 +159,6 @@ class RoleController extends Controller
         return back()->with('status', $role->isPlatform()
             ? 'Role updated. Changes apply to every school using it.'
             : 'Role updated successfully.');
-    }
-
-    /**
-     * Pages a role may receive: every page for platform roles, only the school's pages for school roles.
-     *
-     * @return Collection<int, Menu>
-     */
-    private function menuCatalog(?School $school): Collection
-    {
-        return Menu::catalog($school?->menus()->pluck('menus.id')->map(fn (mixed $id): int => (int) $id)->all());
-    }
-
-    /**
-     * Keeps only real pages from the catalog and only actions each page supports,
-     * so tampered form input can never grant something outside the school.
-     */
-    private function syncMenus(Role $role, ?School $school, mixed $input): void
-    {
-        $input = is_array($input) ? $input : [];
-        $rows = [];
-
-        foreach ($this->menuCatalog($school)->flatMap->children as $menu) {
-            $requested = $input[$menu->getKey()] ?? [];
-
-            if (! is_array($requested)) {
-                continue;
-            }
-
-            $row = array_fill_keys(Menu::ACTION_COLUMNS, false);
-
-            foreach ($menu->availableActions() as $action) {
-                $row[$action->column()] = filter_var($requested[$action->value] ?? false, FILTER_VALIDATE_BOOLEAN);
-            }
-
-            if (in_array(true, $row, true)) {
-                $rows[$menu->getKey()] = $row;
-            }
-        }
-
-        $role->menus()->sync($rows);
-    }
-
-    /**
-     * @return array<int, array<string, bool>>
-     */
-    private function currentGrants(Role $role): array
-    {
-        $grants = [];
-
-        foreach (DB::table('role_menus')->where('role_id', $role->getKey())->get() as $row) {
-            foreach (MenuAction::cases() as $action) {
-                $grants[(int) $row->menu_id][$action->value] = (bool) $row->{$action->column()};
-            }
-        }
-
-        return $grants;
     }
 
     /**

@@ -1,12 +1,6 @@
 @extends('layouts.dashboard', ['title' => 'Edit User', 'panelLabel' => 'SUPER ADMIN', 'workspaceName' => 'Platform Control'])
 
 @section('content')
-    @php
-        $actions = \App\Enums\MenuAction::cases();
-        $oldOverrides = old('overrides');
-        $currentOverrides = is_array($oldOverrides) ? $oldOverrides : $overrides;
-    @endphp
-
     <div class="dashboard-page-heading">
         <div>
             <span class="section-kicker">{{ strtoupper($user->school?->name ?? 'USER') }}</span>
@@ -38,60 +32,10 @@
                 or <strong>Deny</strong> to take something away. The small tick or cross shows what the role gives today.
             </p>
 
-            @forelse ($groups as $group)
-                <div class="role-permission-module">
-                    <div class="role-permission-module-heading">
-                        <span>{{ strtoupper(substr($group->name, 0, 1)) }}</span>
-                        <div><strong>{{ $group->name }}</strong><small>{{ $group->children->count() }} pages</small></div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table access-matrix mb-0">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Page</th>
-                                    @foreach ($actions as $action)
-                                        <th scope="col" class="text-center">{{ $action->label() }}</th>
-                                    @endforeach
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($group->children as $menu)
-                                    @php($available = array_map(fn ($a) => $a->value, $menu->availableActions()))
-                                    <tr>
-                                        <th scope="row">{{ $menu->name }}</th>
-                                        @foreach ($actions as $action)
-                                            <td class="text-center">
-                                                @if (in_array($action->value, $available, true))
-                                                    @php($value = $currentOverrides[$menu->id][$action->value] ?? '')
-                                                    @php($fromRole = $roleGrants[$menu->id][$action->value] ?? false)
-                                                    <div class="access-override-cell">
-                                                        <select class="form-select access-override-select {{ $value !== '' ? 'is-set is-'.$value : '' }}" name="overrides[{{ $menu->id }}][{{ $action->value }}]" aria-label="{{ $action->label() }} {{ $menu->name }}">
-                                                            <option value="" @selected($value === '')>Role</option>
-                                                            <option value="allow" @selected($value === 'allow')>Allow</option>
-                                                            <option value="deny" @selected($value === 'deny')>Deny</option>
-                                                        </select>
-                                                        <small class="access-role-hint {{ $fromRole ? 'yes' : 'no' }}" title="Role {{ $fromRole ? 'allows' : 'does not allow' }}">{{ $fromRole ? '✓' : '✕' }}</small>
-                                                    </div>
-                                                @else
-                                                    <span class="access-matrix-na" aria-hidden="true">&ndash;</span>
-                                                @endif
-                                            </td>
-                                        @endforeach
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @empty
-                <div class="role-permission-empty">
-                    <strong>No menus available</strong>
-                    @if ($user->school)
-                        <p>{{ $user->school->name }} has no menus yet.</p>
-                        <a class="btn school-access-button" href="{{ route('platform.schools.access', $user->school) }}">Assign school menus</a>
-                    @endif
-                </div>
-            @endforelse
+            @include('partials.access.override-matrix', [
+                'emptyMessage' => $user->school ? $user->school->name.' has no menus yet.' : 'This user has no school.',
+                'assignMenusUrl' => $user->school ? route('platform.schools.access', $user->school) : null,
+            ])
         </section>
 
         <div class="school-form-actions">

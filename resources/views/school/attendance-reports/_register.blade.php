@@ -16,7 +16,7 @@
             <tr>
                 <th scope="col" class="attendance-register-person">{{ $leadHeading }}</th>
                 @foreach ($days as $dayNumber => $day)
-                    <th scope="col" class="{{ isset($register->holidays[$dayNumber]) ? 'is-holiday' : ($day->isSunday() ? 'is-sunday' : '') }}" title="{{ $register->holidays[$dayNumber] ?? $day->format('l') }}">
+                    <th scope="col" class="{{ isset($register->holidays[$dayNumber]) ? 'is-holiday' : ($register->isOffDay($day) ? 'is-sunday' : '') }}" title="{{ $register->holidays[$dayNumber] ?? $day->format('l').($register->isOffDay($day) ? ' · weekly off' : '') }}">
                         {{ $dayNumber }}<small>{{ $day->format('D')[0] }}</small>
                     </th>
                 @endforeach
@@ -42,7 +42,7 @@
                         @elseif (isset($register->holidays[$dayNumber]))
                             <td class="attendance-mark is-holiday" title="{{ $register->holidays[$dayNumber] }}">H</td>
                         @else
-                            <td class="attendance-mark {{ $day->isSunday() ? 'is-sunday' : '' }}"></td>
+                            <td class="attendance-mark {{ $register->isOffDay($day) ? 'is-sunday' : '' }}"></td>
                         @endif
                     @endforeach
                     @foreach ($statuses as $statusOption)

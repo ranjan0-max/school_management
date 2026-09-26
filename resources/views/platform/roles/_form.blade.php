@@ -1,15 +1,4 @@
-@php
-    $isEditing = $role->exists;
-    $oldMenus = old('menus');
-    $checked = function (int $menuId, string $action) use ($oldMenus, $grants): bool {
-        if (is_array($oldMenus)) {
-            return filter_var($oldMenus[$menuId][$action] ?? false, FILTER_VALIDATE_BOOLEAN);
-        }
-
-        return $grants[$menuId][$action] ?? false;
-    };
-    $actions = \App\Enums\MenuAction::cases();
-@endphp
+@php($isEditing = $role->exists)
 
 <div class="row g-4">
     <div class="col-xl-4">
@@ -61,55 +50,10 @@
                 A dash means the action does not apply to that page.
             </p>
 
-            @forelse ($groups as $group)
-                <div class="role-permission-module" data-check-scope>
-                    <div class="role-permission-module-heading">
-                        <span>{{ strtoupper(substr($group->name, 0, 1)) }}</span>
-                        <div><strong>{{ $group->name }}</strong><small>{{ $group->children->count() }} pages</small></div>
-                        <label class="check-all-toggle"><input class="form-check-input" type="checkbox" data-check-all><span>Select all</span></label>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table access-matrix mb-0">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Page</th>
-                                    @foreach ($actions as $action)
-                                        <th scope="col" class="text-center">{{ $action->label() }}</th>
-                                    @endforeach
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($group->children as $menu)
-                                    @php($available = array_map(fn ($a) => $a->value, $menu->availableActions()))
-                                    <tr>
-                                        <th scope="row">{{ $menu->name }}</th>
-                                        @foreach ($actions as $action)
-                                            <td class="text-center">
-                                                @if (in_array($action->value, $available, true))
-                                                    <input class="form-check-input" type="checkbox" name="menus[{{ $menu->id }}][{{ $action->value }}]" value="1" aria-label="{{ $action->label() }} {{ $menu->name }}" @checked($checked($menu->id, $action->value))>
-                                                @else
-                                                    <span class="access-matrix-na" aria-hidden="true">&ndash;</span>
-                                                @endif
-                                            </td>
-                                        @endforeach
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @empty
-                <div class="role-permission-empty">
-                    <strong>No menus available</strong>
-                    @if ($school)
-                        <p>Assign menus to {{ $school->name }} before configuring its roles.</p>
-                        <a class="btn school-access-button" href="{{ route('platform.schools.access', $school) }}">Assign school menus</a>
-                    @else
-                        <p>Run the navigation seeder to load the menu catalog.</p>
-                    @endif
-                </div>
-            @endforelse
+            @include('partials.access.role-matrix', [
+                'emptyMessage' => $school ? 'Assign menus to '.$school->name.' before configuring its roles.' : 'Run the navigation seeder to load the menu catalog.',
+                'assignMenusUrl' => $school ? route('platform.schools.access', $school) : null,
+            ])
         </section>
     </div>
 </div>

@@ -3,6 +3,7 @@
 namespace App\Support\Attendance;
 
 use App\Models\Holiday;
+use App\Models\School;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -17,18 +18,21 @@ final class MonthlyRegister
     /**
      * @param  array<int, string>  $holidays  day of month => holiday name
      * @param  array<int, true>  $takenDays  days of month on which attendance was taken
+     * @param  array<int, int>  $workingDays  weekdays the school works (0 = Sunday)
      */
     private function __construct(
         public readonly CarbonImmutable $month,
         public readonly array $holidays,
         public readonly array $takenDays,
+        public readonly array $workingDays,
     ) {}
 
     /**
      * @param  Builder<Model>  $sheets  the sheets that count for this register (already scoped)
      */
-    public static function for(int $schoolId, CarbonImmutable $month, Builder $sheets): self
+    public static function for(School $school, CarbonImmutable $month, Builder $sheets): self
     {
+        $schoolId = (int) $school->getKey();
         $from = $month->startOfMonth();
         $to = $month->endOfMonth()->startOfDay();
         $holidays = [];
@@ -48,7 +52,15 @@ final class MonthlyRegister
             $takenDays[CarbonImmutable::parse($date)->day] = true;
         }
 
-        return new self($from, $holidays, $takenDays);
+        return new self($from, $holidays, $takenDays, $school->workingDays());
+    }
+
+    /**
+     * A weekly off day, such as Sunday, from the school's working days setting.
+     */
+    public function isOffDay(CarbonImmutable $day): bool
+    {
+        return ! in_array($day->dayOfWeek, $this->workingDays, true);
     }
 
     /**

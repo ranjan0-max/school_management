@@ -49,6 +49,37 @@ class School extends Model
     }
 
     /**
+     * A value from the school's own settings (see School Settings), or $default.
+     */
+    public function setting(string $key, mixed $default = null): mixed
+    {
+        $value = data_get($this->settings ?? [], $key);
+
+        return $value === null || $value === '' ? $default : $value;
+    }
+
+    /**
+     * Days the school works, as Carbon day numbers (0 = Sunday … 6 = Saturday).
+     * Monday to Saturday unless the school has chosen otherwise.
+     *
+     * @return array<int, int>
+     */
+    public function workingDays(): array
+    {
+        $days = $this->setting('working_days');
+
+        return is_array($days) ? array_values(array_map('intval', $days)) : [1, 2, 3, 4, 5, 6];
+    }
+
+    /**
+     * Start of generated admission numbers, e.g. "ADM" gives ADM-2026-0001.
+     */
+    public function admissionPrefix(): string
+    {
+        return (string) $this->setting('admission_no_prefix', 'ADM');
+    }
+
+    /**
      * @return HasMany<User, $this>
      */
     public function users(): HasMany

@@ -48,9 +48,9 @@ class NavigationSeeder extends Seeder
                 ['report_cards', 'Report Cards', 'view,export'],
             ]],
             ['key' => 'communication', 'name' => 'Communication', 'icon' => 'communication', 'pages' => [
-                ['notices', 'Notices', self::CRUD],
-                ['messages', 'Messages', 'view,create,delete'],
-                ['notifications', 'Notifications', 'view'],
+                // Notices are archived (an "edit"), never deleted. Messages and notifications
+                // were dropped from the plan on 2026-09-27.
+                ['notices', 'Notices', 'view,create,edit', 'school.notices.index'],
             ]],
             ['key' => 'other_services', 'name' => 'Other Services', 'icon' => 'services', 'pages' => [
                 ['library', 'Library', self::CRUD],
@@ -58,38 +58,35 @@ class NavigationSeeder extends Seeder
                 ['hostel', 'Hostel', self::CRUD],
             ]],
             ['key' => 'administration', 'name' => 'Administration', 'icon' => 'settings', 'pages' => [
-                ['users', 'Users', self::CRUD],
-                ['roles', 'Roles & Access', self::CRUD],
-                ['audit_logs', 'Audit Logs', 'view,export'],
-                ['school_settings', 'School Settings', 'view,edit'],
+                // Users and roles are deactivated, never deleted, so there is no "delete" action.
+                ['users', 'Users', 'view,create,edit', 'school.users.index'],
+                ['roles', 'Roles & Access', 'view,create,edit', 'school.roles.index'],
+                ['audit_logs', 'Audit Logs', 'view,export', 'school.audit-logs.index'],
+                ['school_settings', 'School Settings', 'view,edit', 'school.settings.edit'],
             ]],
         ];
 
         $catalogKeys = [];
 
-        foreach ($catalog as $groupOrder => $group) {
+        // The order is set by the Super Admin (Platform → Menu order), so re-seeding never
+        // touches sort_order of existing menus: new ones are added at the end of their group.
+        foreach ($catalog as $group) {
             $catalogKeys[] = $group['key'];
             $catalogKeys = [...$catalogKeys, ...array_column($group['pages'], 0)];
 
-            $parent = Menu::query()->updateOrCreate(['key' => $group['key']], [
-                'parent_id' => null,
+            $parent = $this->place(Menu::query()->firstOrNew(['key' => $group['key']]), null, [
                 'name' => $group['name'],
                 'icon' => $group['icon'],
                 'actions' => null,
-                'sort_order' => ($groupOrder + 1) * 10,
-                'is_active' => true,
             ]);
 
-            foreach ($group['pages'] as $pageOrder => $page) {
+            foreach ($group['pages'] as $page) {
                 [$key, $name, $actions] = $page;
 
-                Menu::query()->updateOrCreate(['key' => $key], [
-                    'parent_id' => $parent->getKey(),
+                $this->place(Menu::query()->firstOrNew(['key' => $key]), (int) $parent->getKey(), [
                     'name' => $name,
                     'route_name' => $page[3] ?? null,
                     'actions' => $actions,
-                    'sort_order' => ($pageOrder + 1) * 10,
-                    'is_active' => true,
                 ]);
             }
         }
@@ -98,5 +95,29 @@ class NavigationSeeder extends Seeder
         // deleted; their school_menus / role_menus / override rows cascade with them.
         Menu::query()->whereNotNull('parent_id')->whereNotIn('key', $catalogKeys)->delete();
         Menu::query()->whereNull('parent_id')->whereNotIn('key', $catalogKeys)->delete();
+    }
+
+    /**
+     * Saves a menu under $parentId. A new menu, or one moved to another group, goes last.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function place(Menu $menu, ?int $parentId, array $attributes): Menu
+    {
+        $currentParentId = $menu->parent_id === null ? null : (int) $menu->parent_id;
+        $movesGroup = ! $menu->exists || $currentParentId !== $parentId;
+
+        $menu->fill([...$attributes, 'parent_id' => $parentId, 'is_active' => true]);
+
+        if ($movesGroup) {
+            $menu->sort_order = (int) Menu::query()
+                ->when($parentId === null, fn ($query) => $query->whereNull('parent_id'), fn ($query) => $query->where('parent_id', $parentId))
+                ->whereKeyNot($menu->getKey() ?? 0)
+                ->max('sort_order') + 10;
+        }
+
+        $menu->save();
+
+        return $menu;
     }
 }

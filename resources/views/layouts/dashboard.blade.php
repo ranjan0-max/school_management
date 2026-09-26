@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-    <link href="{{ asset('css/dashboard.css') }}?v=20260926-8" rel="stylesheet">
+    <link href="{{ asset('css/dashboard.css') }}?v=20260927-3" rel="stylesheet">
 </head>
 <body class="dashboard-body">
     <a class="skip-link" href="#dashboard-content">Skip to content</a>
@@ -61,6 +61,10 @@
                     <a class="dashboard-nav-link {{ request()->routeIs('platform.audit-logs.*') ? 'active' : '' }}" href="{{ route('platform.audit-logs.index') }}">
                         <span class="dashboard-nav-icon" aria-hidden="true"><x-sidebar-icon name="audit_logs" /></span>
                         Audit logs
+                    </a>
+                    <a class="dashboard-nav-link {{ request()->routeIs('platform.menus.*') ? 'active' : '' }}" href="{{ route('platform.menus.order') }}">
+                        <span class="dashboard-nav-icon" aria-hidden="true"><x-sidebar-icon name="menu_order" /></span>
+                        Menu order
                     </a>
                 @endif
 
@@ -162,6 +166,35 @@
                         </div>
                     @endif
 
+                    @if ($noticeBell)
+                        {{-- Notice bell: unread count, latest notices, full notice in a modal. --}}
+                        <div class="dropdown" data-notice-bell data-feed-url="{{ $noticeBell['feedUrl'] }}">
+                            <button
+                                class="dashboard-settings-button dashboard-bell-button"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false"
+                                aria-label="Notices{{ $noticeBell['unread'] ? ', '.$noticeBell['unread'].' unread' : '' }}"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9Z" />
+                                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                                </svg>
+                                <span class="dashboard-bell-count" data-bell-count @if (! $noticeBell['unread']) hidden @endif>{{ $noticeBell['unread'] > 99 ? '99+' : $noticeBell['unread'] }}</span>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-end dashboard-account-menu dashboard-bell-menu">
+                                <div class="dashboard-account-menu-header dashboard-bell-header">
+                                    <strong>Notices</strong>
+                                    <a href="{{ $noticeBell['indexUrl'] }}">View all</a>
+                                </div>
+                                <div class="dashboard-bell-list" data-bell-list></div>
+                                <button class="dropdown-item dashboard-school-more" type="button" data-bell-more hidden>Load more</button>
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="dropdown">
                         <button
                             class="dashboard-settings-button"
@@ -206,7 +239,29 @@
         </div>
     </div>
 
+    {{-- Full notice, opened from the bell or from a notice card. --}}
+    @if ($noticeBell)
+    <div class="modal fade" id="notice-modal" tabindex="-1" aria-labelledby="notice-modal-title" aria-hidden="true" data-notice-modal>
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content notice-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="notice-pin" data-notice-modal-pin hidden>📌 Pinned</span>
+                        <h2 class="modal-title h5 mt-1" id="notice-modal-title" data-notice-modal-title>Notice</h2>
+                        <small class="text-muted" data-notice-modal-meta></small>
+                    </div>
+                    <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body notice-body" data-notice-modal-body></div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary app-btn-primary" type="button" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ asset('js/dashboard.js') }}?v=20260926-5" defer></script>
+    <script src="{{ asset('js/dashboard.js') }}?v=20260927-3" defer></script>
 </body>
 </html>

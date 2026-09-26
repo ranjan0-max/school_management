@@ -5,23 +5,29 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Platform\AuditLogController;
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
+use App\Http\Controllers\Platform\MenuOrderController;
 use App\Http\Controllers\Platform\RoleController;
 use App\Http\Controllers\Platform\SchoolController;
 use App\Http\Controllers\Platform\UserController;
 use App\Http\Controllers\School\AcademicSessionController;
 use App\Http\Controllers\School\AttendanceReportController;
+use App\Http\Controllers\School\AuditLogController as SchoolAuditLogController;
 use App\Http\Controllers\School\DashboardController as SchoolDashboardController;
 use App\Http\Controllers\School\EmployeeController;
 use App\Http\Controllers\School\GuardianController;
 use App\Http\Controllers\School\HolidayController;
+use App\Http\Controllers\School\NoticeController;
 use App\Http\Controllers\School\PeriodController;
+use App\Http\Controllers\School\RoleController as SchoolRoleController;
 use App\Http\Controllers\School\SchoolClassController;
 use App\Http\Controllers\School\SectionController;
+use App\Http\Controllers\School\SettingsController;
 use App\Http\Controllers\School\StaffAttendanceController;
 use App\Http\Controllers\School\StudentAttendanceController;
 use App\Http\Controllers\School\StudentController;
 use App\Http\Controllers\School\SubjectController;
 use App\Http\Controllers\School\TimetableEntryController;
+use App\Http\Controllers\School\UserController as SchoolUserController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -49,6 +55,9 @@ Route::middleware('auth')->group(function () {
         Route::put('schools/{school}/access', [SchoolController::class, 'updateAccess'])->name('schools.access.update');
         Route::post('schools/{school}/enter', [SchoolController::class, 'enter'])->name('schools.enter');
         Route::delete('school-context', [SchoolController::class, 'leave'])->name('schools.leave');
+
+        Route::get('menu-order', [MenuOrderController::class, 'edit'])->name('menus.order');
+        Route::put('menu-order', [MenuOrderController::class, 'update'])->name('menus.order.update');
 
         Route::get('roles/options', [RoleController::class, 'options'])->name('roles.options');
         Route::resource('roles', RoleController::class)->except(['show', 'destroy']);
@@ -97,5 +106,21 @@ Route::middleware('auth')->group(function () {
         Route::get('attendance-reports/export', [AttendanceReportController::class, 'studentsExport'])->name('attendance-reports.export');
         Route::get('attendance-reports/staff', [AttendanceReportController::class, 'staff'])->name('attendance-reports.staff');
         Route::get('attendance-reports/staff/export', [AttendanceReportController::class, 'staffExport'])->name('attendance-reports.staff-export');
+
+        // Communication: notices are archived, never deleted.
+        Route::get('notices/feed', [NoticeController::class, 'feed'])->name('notices.feed');
+        Route::get('notices/{notice}/preview', [NoticeController::class, 'preview'])->name('notices.preview');
+        Route::resource('notices', NoticeController::class)->except(['show', 'destroy']);
+        Route::patch('notices/{notice}/archive', [NoticeController::class, 'archive'])->name('notices.archive');
+        Route::patch('notices/{notice}/restore', [NoticeController::class, 'restore'])->name('notices.restore');
+
+        // Administration of the school by its own staff. Nothing here is ever deleted.
+        Route::resource('users', SchoolUserController::class)->except(['show', 'destroy']);
+        Route::patch('users/{user}/status', [SchoolUserController::class, 'status'])->name('users.status');
+        Route::resource('roles', SchoolRoleController::class)->except(['show', 'destroy']);
+        Route::get('audit-logs', [SchoolAuditLogController::class, 'index'])->name('audit-logs.index');
+        Route::get('audit-logs/export', [SchoolAuditLogController::class, 'export'])->name('audit-logs.export');
+        Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
     });
 });

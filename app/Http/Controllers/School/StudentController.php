@@ -114,7 +114,7 @@ class StudentController extends Controller implements HasMiddleware
             $student = Student::query()->create([
                 ...$this->studentFields($attributes),
                 'school_id' => $school->getKey(),
-                'admission_no' => $attributes['admission_no'] ?? SchoolNumber::next($school, 'students', 'admission_no', "ADM-{$year}-"),
+                'admission_no' => $attributes['admission_no'] ?? SchoolNumber::next($school, 'students', 'admission_no', "{$school->admissionPrefix()}-{$year}-"),
             ]);
 
             $this->syncEnrollment($student, $currentSession, $attributes);

@@ -164,7 +164,7 @@ class AttendanceReportController extends Controller implements HasMiddleware
     private function studentRegister(Section $section, CarbonImmutable $month): MonthlyRegister
     {
         return MonthlyRegister::for(
-            (int) $this->currentSchool()->getKey(),
+            $this->currentSchool(),
             $month,
             StudentAttendanceSheet::query()->where('section_id', $section->getKey()),
         );
@@ -172,9 +172,9 @@ class AttendanceReportController extends Controller implements HasMiddleware
 
     private function staffRegister(CarbonImmutable $month): MonthlyRegister
     {
-        $schoolId = (int) $this->currentSchool()->getKey();
+        $school = $this->currentSchool();
 
-        return MonthlyRegister::for($schoolId, $month, StaffAttendanceSheet::query()->where('school_id', $schoolId));
+        return MonthlyRegister::for($school, $month, StaffAttendanceSheet::query()->where('school_id', $school->getKey()));
     }
 
     /**

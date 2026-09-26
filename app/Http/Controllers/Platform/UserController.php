@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers\Platform;
 
-use App\Enums\MenuAction;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Platform\StoreUserRequest;
 use App\Http\Requests\Platform\UpdateUserRequest;
-use App\Models\Menu;
 use App\Models\Role;
 use App\Models\School;
 use App\Models\User;
+use App\Support\Access\AccessMatrix;
 use App\Support\Audit\AuditLogger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -21,7 +20,10 @@ use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly AccessMatrix $access,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -108,9 +110,9 @@ class UserController extends Controller
             'schools' => School::query()->orderBy('name')->get(['id', 'name']),
             'roles' => $this->assignableRoles((int) ($request->old('school_id') ?? $user->school_id)),
             'statuses' => UserStatus::cases(),
-            'groups' => $this->schoolCatalog($user->school),
-            'roleGrants' => $this->roleGrants($user->role, $user->school),
-            'overrides' => $this->currentOverrides($user),
+            'groups' => $user->school === null ? new Collection : $this->access->catalog($user->school),
+            'roleGrants' => $this->access->effectiveRoleGrants($user->role, $user->school),
+            'overrides' => $this->access->userOverrides($user),
         ]);
     }
 
@@ -137,7 +139,7 @@ class UserController extends Controller
 
             $user->save();
 
-            $this->syncOverrides($user, $request->input('overrides', []));
+            $this->access->syncUserOverrides($user, $request->input('overrides', []));
         });
 
         $this->audit->record(
@@ -167,103 +169,6 @@ class UserController extends Controller
             ->orderBy('type')
             ->orderBy('name')
             ->get(['id', 'type', 'school_id', 'name']);
-    }
-
-    /**
-     * @return Collection<int, Menu>
-     */
-    private function schoolCatalog(?School $school): Collection
-    {
-        if ($school === null) {
-            return new Collection;
-        }
-
-        return Menu::catalog($school->menus()->pluck('menus.id')->map(fn (mixed $id): int => (int) $id)->all());
-    }
-
-    /**
-     * What the role alone grants, so the screen can show "Role: allowed / not allowed".
-     *
-     * @return array<int, array<string, bool>>
-     */
-    private function roleGrants(?Role $role, ?School $school): array
-    {
-        if ($role === null || ! $role->is_active || ! $role->isUsableIn($school?->getKey())) {
-            return [];
-        }
-
-        $grants = [];
-
-        foreach ($this->schoolCatalog($school)->flatMap->children as $menu) {
-            foreach ($menu->availableActions() as $action) {
-                $grants[$menu->getKey()][$action->value] = $role->all_school_menus;
-            }
-        }
-
-        if (! $role->all_school_menus) {
-            foreach (DB::table('role_menus')->where('role_id', $role->getKey())->get() as $row) {
-                foreach (MenuAction::cases() as $action) {
-                    if (isset($grants[(int) $row->menu_id][$action->value])) {
-                        $grants[(int) $row->menu_id][$action->value] = (bool) $row->{$action->column()};
-                    }
-                }
-            }
-        }
-
-        return $grants;
-    }
-
-    /**
-     * @return array<int, array<string, string>>
-     */
-    private function currentOverrides(User $user): array
-    {
-        $overrides = [];
-
-        foreach (DB::table('user_menu_overrides')->where('user_id', $user->getKey())->get() as $row) {
-            foreach (MenuAction::cases() as $action) {
-                $value = $row->{$action->column()};
-
-                if ($value !== null) {
-                    $overrides[(int) $row->menu_id][$action->value] = $value ? 'allow' : 'deny';
-                }
-            }
-        }
-
-        return $overrides;
-    }
-
-    /**
-     * Only pages assigned to the user's current school, and only actions each page supports.
-     */
-    private function syncOverrides(User $user, mixed $input): void
-    {
-        $input = is_array($input) ? $input : [];
-        $rows = [];
-
-        foreach ($this->schoolCatalog($user->school()->first())->flatMap->children as $menu) {
-            $requested = $input[$menu->getKey()] ?? [];
-
-            if (! is_array($requested)) {
-                continue;
-            }
-
-            $row = array_fill_keys(Menu::ACTION_COLUMNS, null);
-
-            foreach ($menu->availableActions() as $action) {
-                $row[$action->column()] = match ($requested[$action->value] ?? null) {
-                    'allow' => true,
-                    'deny' => false,
-                    default => null,
-                };
-            }
-
-            if (array_filter($row, fn (?bool $value): bool => $value !== null) !== []) {
-                $rows[$menu->getKey()] = $row;
-            }
-        }
-
-        $user->menuOverrides()->sync($rows);
     }
 
     /**
